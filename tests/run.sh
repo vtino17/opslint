@@ -63,8 +63,10 @@ printf 'bob ALL=(ALL) NOPASSWD: /usr/bin/vim\n' > "$T/sudoers"
 assert "passthrough runs sudoerslint" "shell escape" -- $OL sudo "$T/sudoers" --no-color
 
 echo "== JSON output for CI =="
-# valid JSON with the expected shape and a computed score
-if $OL audit --dir "$F" --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'score' in d and 'findings' in d and d['failed'] is True and len(d['findings'])>0" 2>/dev/null; then
+# capture the JSON first: opslint intentionally exits non-zero on findings, and
+# with 'set -o pipefail' that would mask the parser's own result.
+_json="$($OL audit --dir "$F" --json || true)"
+if printf '%s' "$_json" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'score' in d and 'findings' in d and d['failed'] is True and len(d['findings'])>0"; then
     printf '  PASS  %s\n' "audit --json is valid, well-shaped JSON"; pass=$((pass+1))
 else printf '  FAIL  %s\n' "audit --json JSON shape"; fail=$((fail+1)); fi
 assert "json findings carry tool+level" '"level": "CRITICAL"' -- $OL audit --dir "$F" --json
