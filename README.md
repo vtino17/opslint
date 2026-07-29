@@ -13,6 +13,8 @@ findings up into a single severity summary, a **0-100 score**, and one exit code
 | **cronlint**    | crontab footguns — missing final newline, unescaped `%`, dom+dow trap |
 | **envlint**     | `.env` / `docker-compose` — hardcoded secrets, exposed ports |
 | **nginxdoctor** | nginx — weak TLS, missing headers, the `add_header` inheritance trap |
+| **sysctlaudit** | sysctl config vs a CIS kernel-hardening baseline |
+| **unitcheck**   | systemd `.service` sandboxing score (in `--dir` mode / `opslint unit`) |
 
 Everything is bundled in `tools/`, so opslint is self-contained: one Python 3,
 no dependencies, reads files only, changes nothing.

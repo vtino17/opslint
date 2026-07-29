@@ -39,6 +39,8 @@ SCRIPTS = {
     "cron": "cronlint.py",
     "env": "envlint.py",
     "nginx": "nginxdoctor.py",
+    "sysctl": "sysctlaudit.py",
+    "unit": "unitcheck.py",
 }
 
 # severity token -> (score weight, is-failing)
@@ -112,8 +114,20 @@ def discover(base: str | None) -> list[tuple[str, str, list[str]]]:
                sorted(glob.glob(os.path.join(b, "*.conf"))) +
                sorted(glob.glob(os.path.join(b, "sites-enabled", "*"))))
         ngx = [p for p in dict.fromkeys(ngx) if os.path.isfile(p)]
+        # exclude sysctl .conf files misfiled as nginx (they get their own job)
+        ngx = [p for p in ngx if os.path.basename(p) != "sysctl.conf"]
         if ngx:
             add("nginx", "nginxdoctor.py", ngx + ["--no-color"])
+        # sysctl
+        sysctl = _first_existing(os.path.join(b, "sysctl.conf"))
+        if os.path.isdir(os.path.join(b, "sysctl.d")):
+            sysctl.append(os.path.join(b, "sysctl.d"))
+        if sysctl:
+            add("sysctl", "sysctlaudit.py", sysctl + ["--no-color"])
+        # systemd units (a repo's own .service files)
+        units = sorted(glob.glob(os.path.join(b, "*.service")))
+        for u in units:
+            add("unit", "unitcheck.py", [u, "--no-color"])
     else:
         # system defaults
         for p in _first_existing("/etc/ssh/sshd_config"):
@@ -131,6 +145,15 @@ def discover(base: str | None) -> list[tuple[str, str, list[str]]]:
         ngx = [p for p in ngx if os.path.isfile(p)]
         if ngx:
             add("nginx", "nginxdoctor.py", ngx + ["--no-color"])
+        # sysctl config (files only; the running kernel is a separate concern)
+        sysctl = _first_existing("/etc/sysctl.conf")
+        if os.path.isdir("/etc/sysctl.d"):
+            sysctl.append("/etc/sysctl.d")
+        if sysctl:
+            add("sysctl", "sysctlaudit.py", sysctl + ["--no-color"])
+        # note: system .service units are deliberately not swept here - most are
+        # vendor units that legitimately need privileges. Use 'opslint unit <f>'
+        # or 'opslint audit --dir' on a repo of your own units.
     return jobs
 
 

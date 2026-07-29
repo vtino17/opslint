@@ -23,7 +23,7 @@ echo "== syntax & bundled tools =="
 if python3 -c "import ast; ast.parse(open('opslint.py').read())"; then
     echo "  PASS  opslint.py parses"; pass=$((pass+1))
 else echo "  FAIL  syntax"; fail=$((fail+1)); fi
-for t in sshaudit sudoerslint fstablint cronlint envlint nginxdoctor; do
+for t in sshaudit sudoerslint fstablint cronlint envlint nginxdoctor sysctlaudit unitcheck; do
     if [[ -f "tools/$t.py" ]]; then printf '  PASS  bundled %s\n' "$t"; pass=$((pass+1))
     else printf '  FAIL  missing bundled %s\n' "$t"; fail=$((fail+1)); fi
 done
@@ -35,6 +35,8 @@ printf 'alice ALL=(ALL) NOPASSWD: ALL\n'  > "$F/sudoers.d/ops"
 printf 'tmpfs /tmp tmpfs defaults 0 0\n'  > "$F/fstab"
 printf 'DB_PASSWORD=changeme\n'           > "$F/.env"
 printf 'http { server { listen 443 ssl; ssl_protocols TLSv1; } }\n' > "$F/nginx.conf"
+printf 'net.ipv4.tcp_syncookies = 0\n' > "$F/sysctl.conf"
+printf '[Service]\nExecStart=/usr/bin/app\n' > "$F/app.service"
 
 echo "== aggregate audit =="
 assert "runs ssh check"       "PermitRootLogin"            -- $OL audit --dir "$F" --no-color
@@ -42,6 +44,8 @@ assert "runs sudo check"      "passwordless full sudo"     -- $OL audit --dir "$
 assert "runs fstab check"     "/tmp is missing"            -- $OL audit --dir "$F" --no-color
 assert "runs env check"       "weak/default value"         -- $OL audit --dir "$F" --no-color
 assert "runs nginx check"     "obsolete TLSv1"             -- $OL audit --dir "$F" --no-color
+assert "runs sysctl check"    "tcp_syncookies"             -- $OL audit --dir "$F" --no-color
+assert "runs unit check"      "runs as root"               -- $OL audit --dir "$F" --no-color
 assert "prints a rolled-up score" "opslint score:"        -- $OL audit --dir "$F" --no-color
 assert "aggregates critical"  "critical"                   -- $OL audit --dir "$F" --no-color
 assert_exit "findings -> non-zero exit" 1 -- $OL audit --dir "$F" --no-color
