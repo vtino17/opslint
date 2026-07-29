@@ -41,6 +41,25 @@ opslint score: 13/100 (poor) - 1 critical, 4 high, 3 medium, 2 warn, 2 low
 The exit status is non-zero if anything is HIGH or CRITICAL, so `opslint audit`
 drops straight into CI or a nightly cron check.
 
+### Machine-readable output
+
+`--json` emits the score and every finding as JSON, for a pipeline, a dashboard,
+or `jq`:
+
+```sh
+$ opslint audit --dir ./config --json
+{
+  "score": 65,
+  "band": "needs work",
+  "failed": true,
+  "counts": { "CRITICAL": 1, "HIGH": 1 },
+  "findings": [
+    { "tool": "sudo", "level": "CRITICAL", "detail": "sudoers:1: alice: passwordless full sudo ..." },
+    { "tool": "fstab", "level": "HIGH", "detail": "line 1: /tmp is missing nodev,noexec,nosuid ..." }
+  ]
+}
+```
+
 Run any bundled tool directly and pass it your own arguments:
 
 ```sh

@@ -60,13 +60,15 @@ def run_script(name: str, args: list[str]) -> tuple[int, str]:
     return proc.returncode, proc.stdout + proc.stderr
 
 
-def count_levels(output: str) -> dict[str, int]:
-    counts: dict[str, int] = {}
+def parse_findings(output: str) -> list[tuple[str, str]]:
+    """Return (level, detail) for each finding line the tool printed."""
+    found: list[tuple[str, str]] = []
     for line in output.splitlines():
         m = LEVEL_RE.match(line)
         if m:
-            counts[m.group(1)] = counts.get(m.group(1), 0) + 1
-    return counts
+            detail = line[m.end():].strip().lstrip("]").strip()
+            found.append((m.group(1), detail))
+    return found
 
 
 # ---- target discovery -----------------------------------------------------
@@ -143,26 +145,38 @@ def cmd_audit(a: argparse.Namespace) -> int:
 
     total: dict[str, int] = {}
     score = 100
+    records: list[dict[str, str]] = []
     for label, script, args in jobs:
         rc, output = run_script(script, args)
-        print(f"\n### {label} ({script})")
-        body = output.strip("\n")
-        if body:
-            print(body)
-        counts = count_levels(output)
-        for lvl, n in counts.items():
-            total[lvl] = total.get(lvl, 0) + n
-            score -= WEIGHT.get(lvl, (0, False))[0] * n
+        if not a.json:
+            print(f"\n### {label} ({script})")
+            body = output.strip("\n")
+            if body:
+                print(body)
+        for lvl, detail in parse_findings(output):
+            total[lvl] = total.get(lvl, 0) + 1
+            score -= WEIGHT.get(lvl, (0, False))[0]
+            records.append({"tool": label, "level": lvl, "detail": detail})
 
     score = max(0, score)
     failing = any(WEIGHT.get(l, (0, False))[1] for l in total)
-    print("\n" + "=" * 60)
-    if total:
-        summary = ", ".join(f"{n} {lvl.lower()}" for lvl, n in
-                            sorted(total.items(), key=lambda kv: -WEIGHT.get(kv[0], (0,))[0]))
-    else:
-        summary = "no findings"
     band = "good" if score >= 85 else "needs work" if score >= 60 else "poor"
+
+    if a.json:
+        import json
+        print(json.dumps({
+            "score": score,
+            "band": band,
+            "failed": failing,
+            "counts": total,
+            "findings": records,
+        }, indent=2))
+        return 1 if failing else 0
+
+    print("\n" + "=" * 60)
+    summary = (", ".join(f"{n} {lvl.lower()}" for lvl, n in
+               sorted(total.items(), key=lambda kv: -WEIGHT.get(kv[0], (0,))[0]))
+               if total else "no findings")
     line = f"opslint score: {score}/100 ({band}) - {summary}"
     if use_color:
         col = COLOR["OK"] if score >= 85 else COLOR["WARN"] if score >= 60 else COLOR["HIGH"]
@@ -178,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
 
     au = sub.add_parser("audit", help="run every applicable linter and roll up a score")
     au.add_argument("--dir", help="audit config files under this directory instead of /etc")
+    au.add_argument("--json", action="store_true", help="emit machine-readable JSON (score + findings) for CI")
     au.add_argument("--no-color", action="store_true")
 
     for name in SCRIPTS:
