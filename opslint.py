@@ -158,6 +158,9 @@ def discover(base: str | None) -> list[tuple[str, str, list[str]]]:
 
 
 def cmd_audit(a: argparse.Namespace) -> int:
+    if a.dir and not os.path.isdir(a.dir):
+        print(f"opslint: audit target is not a readable directory: {a.dir}", file=sys.stderr)
+        return 2
     use_color = sys.stdout.isatty() and not a.no_color
     jobs = discover(a.dir)
     if not jobs:
