@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # opslint tests. Read-only; builds a fixture config dir in a temp location.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 OL="python3 opslint.py"
 pass=0; fail=0
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
@@ -27,6 +27,12 @@ for t in sshaudit sudoerslint fstablint cronlint envlint nginxdoctor sysctlaudit
     if [[ -f "tools/$t.py" ]]; then printf '  PASS  bundled %s\n' "$t"; pass=$((pass+1))
     else printf '  FAIL  missing bundled %s\n' "$t"; fail=$((fail+1)); fi
 done
+
+echo "== installer path safety =="
+assert "installer rejects root destination" "final component is 'opslint'" -- env OPSLINT_DEST=/ bash install.sh
+assert_exit "installer rejects root destination with non-zero exit" 1 -- env OPSLINT_DEST=/ bash install.sh
+assert "installer rejects unrelated destination" "final component is 'opslint'" -- env OPSLINT_DEST=/opt/other-tool bash install.sh
+assert "installer rejects relative bin path" "OPSLINT_BIN must be an absolute path" -- env OPSLINT_BIN=bin bash install.sh
 
 # a fixture directory with one problem per tool
 F="$T/cfg"; mkdir -p "$F/sudoers.d"
@@ -74,6 +80,19 @@ if printf '%s' "$_json" | python3 -c "import json,sys; d=json.load(sys.stdin); a
     printf '  PASS  %s\n' "audit --json is valid, well-shaped JSON"; pass=$((pass+1))
 else printf '  FAIL  %s\n' "audit --json JSON shape"; fail=$((fail+1)); fi
 assert "json findings carry tool+level" '"level": "CRITICAL"' -- $OL audit --dir "$F" --json
+
+echo "== bundled tool failures fail closed =="
+_broken="$(python3 - "$F" <<'PY' || true
+import opslint
+import sys
+
+opslint.TOOLS = sys.argv[1]  # fixture has targets, but deliberately no tool scripts
+raise SystemExit(opslint.main(["audit", "--dir", sys.argv[1], "--json"]))
+PY
+)"
+if printf '%s' "$_broken" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['failed'] is True and d['counts']['ERROR'] > 0"; then
+    printf '  PASS  %s\n' "a missing bundled tool produces a failing ERROR finding"; pass=$((pass+1))
+else printf '  FAIL  %s\n' "bundled tool failure was ignored"; fail=$((fail+1)); fi
 
 echo
 echo "== $pass passed, $fail failed =="

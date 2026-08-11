@@ -19,6 +19,10 @@ findings up into a single severity summary, a **0-100 score**, and one exit code
 Everything is bundled in `tools/`, so opslint is self-contained: one Python 3,
 no dependencies, reads files only, changes nothing.
 
+Bundled linters run with a 30-second timeout. If a linter cannot start, crashes,
+or returns an invalid execution status, the aggregate audit fails closed with
+an `ERROR` finding instead of silently reporting a clean score.
+
 ## Usage
 
 ```sh
