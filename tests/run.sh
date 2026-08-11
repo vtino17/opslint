@@ -67,6 +67,8 @@ echo "== empty dir is handled =="
 E="$T/empty"; mkdir -p "$E"
 assert "empty dir is graceful" "nothing to audit"          -- $OL audit --dir "$E" --no-color
 assert_exit "empty dir exits zero" 0 -- $OL audit --dir "$E" --no-color
+assert "missing audit target is rejected" "not a readable directory" -- $OL audit --dir "$T/missing" --no-color
+assert_exit "missing audit target exits two" 2 -- $OL audit --dir "$T/missing" --no-color
 
 echo "== passthrough to a single tool =="
 printf 'bob ALL=(ALL) NOPASSWD: /usr/bin/vim\n' > "$T/sudoers"
