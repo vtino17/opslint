@@ -53,12 +53,23 @@ LEVEL_RE = re.compile(r"^\s*(?:\[)?(CRITICAL|ERROR|HIGH|MEDIUM|WARN|LOW|INFO)\b"
 COLOR = {"CRITICAL": "\033[1;31m", "ERROR": "\033[1;31m", "HIGH": "\033[31m",
          "MEDIUM": "\033[33m", "WARN": "\033[33m", "LOW": "\033[36m", "OK": "\033[32m"}
 RESET = "\033[0m"
+TOOL_TIMEOUT_SECONDS = 30
 
 
 def run_script(name: str, args: list[str]) -> tuple[int, str]:
     path = os.path.join(TOOLS, name)
-    proc = subprocess.run([sys.executable, path, *args],
-                          capture_output=True, text=True)
+    try:
+        proc = subprocess.run(
+            [sys.executable, path, *args],
+            capture_output=True,
+            text=True,
+            timeout=TOOL_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, f"{name} timed out after {TOOL_TIMEOUT_SECONDS} seconds\n"
+    except OSError as exc:
+        return 126, f"unable to run {name}: {exc}\n"
     return proc.returncode, proc.stdout + proc.stderr
 
 
@@ -174,12 +185,21 @@ def cmd_audit(a: argparse.Namespace) -> int:
     records: list[dict[str, str]] = []
     for label, script, args in jobs:
         rc, output = run_script(script, args)
+        findings = parse_findings(output)
+        if rc not in (0, 1):
+            detail = next(
+                (line.strip() for line in output.splitlines() if line.strip()),
+                f"{script} exited with status {rc}",
+            )
+            findings.append(("ERROR", f"tool execution failed (exit {rc}): {detail}"))
         if not a.json:
             print(f"\n### {label} ({script})")
             body = output.strip("\n")
             if body:
                 print(body)
-        for lvl, detail in parse_findings(output):
+            if rc not in (0, 1):
+                print(f"ERROR tool execution failed with exit status {rc}")
+        for lvl, detail in findings:
             total[lvl] = total.get(lvl, 0) + 1
             score -= WEIGHT.get(lvl, (0, False))[0]
             records.append({"tool": label, "level": lvl, "detail": detail})
