@@ -7,12 +7,12 @@ findings up into a single severity summary, a **0-100 score**, and one exit code
 
 | Tool | Checks |
 |------|--------|
-| **sshaudit**    | `sshd_config` and `authorized_keys` — weak crypto, risky auth, small RSA keys |
-| **sudoerslint** | dangerous sudoers rules — `NOPASSWD: ALL`, shell-escape (GTFOBins) grants |
-| **fstablint**   | `/etc/fstab` — CIS mount hardening, network-mount boot safety |
-| **cronlint**    | crontab footguns — missing final newline, unescaped `%`, dom+dow trap |
-| **envlint**     | `.env` / `docker-compose` — hardcoded secrets, exposed ports |
-| **nginxdoctor** | nginx — weak TLS, missing headers, the `add_header` inheritance trap |
+| **sshaudit**    | `sshd_config` and `authorized_keys` - weak crypto, risky auth, small RSA keys |
+| **sudoerslint** | dangerous sudoers rules - `NOPASSWD: ALL`, shell-escape (GTFOBins) grants |
+| **fstablint**   | `/etc/fstab` - CIS mount hardening, network-mount boot safety |
+| **cronlint**    | crontab footguns - missing final newline, unescaped `%`, dom+dow trap |
+| **envlint**     | `.env` / `docker-compose` - hardcoded secrets, exposed ports |
+| **nginxdoctor** | nginx - weak TLS, missing headers, the `add_header` inheritance trap |
 | **sysctlaudit** | sysctl config vs a CIS kernel-hardening baseline |
 | **unitcheck**   | systemd `.service` sandboxing score (in `--dir` mode / `opslint unit`) |
 
